@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador Automático de Certificados (Lote a ZIP)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Poppins:wght@300;400;600;700&family=Great+Vibes&display=swap" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    
+    <style>
+        /* Variables CSS (Base para Plantilla Profesional) */
+        :root {
+            --primary-color: #004d99; /* Azul marino */
+            --secondary-color: #ffd700; /* Dorado */
+            --background-light: #f7f9fb;
+            --background-card: #ffffff;
+            --font-body: 'Poppins', sans-serif;
+            --font-display: 'Playfair Display', serif;
+            --border-style-main: 5px solid var(--secondary-color);
+            --border-style-outline: 5px solid var(--primary-color);
+            --cert-padding: 5%;
+            --cert-inner-margin: 5%;
+        }
+
+        /* Estilos Generales y del Contenedor */
+        body {
+            font-family: var(--font-body);
+            margin: 0;
+            padding: 30px 20px;
+            background-color: var(--background-light);
+            color: #333;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            gap: 40px;
+        }
+        .control-panel {
+            flex: 1;
+            padding: 25px;
+            background: var(--background-card);
+            border-radius: 12px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+            height: fit-content;
+        }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 6px; font-weight: 600; color: var(--primary-color); font-size: 0.95em; }
+        input[type="text"], textarea, input[type="date"], select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            box-sizing: border-box;
+        }
+        .btn-generate {
+            width: 100%;
+            padding: 15px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+        .btn-generate:hover { background-color: #003366; }
+
+        /* Área del Certificado */
+        .certificate-area {
+            flex: 3;
+            padding: 15px;
+            background: var(--background-card);
+            border-radius: 12px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+        }
+        .certificate-wrapper {
+            width: 100%;
+            aspect-ratio: 1.414 / 1; 
+            background-color: #fffff8; 
+            border: 1px solid #ddd;
+            padding: var(--cert-padding);
+            box-sizing: border-box;
+            position: relative;
+            text-align: center;
+            overflow: hidden;
+        }
+        /* Borde decorativo principal */
+        .certificate-wrapper::before {
+            content: '';
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            right: 15px;
+            bottom: 15px;
+            border: var(--border-style-main);
+            outline: var(--border-style-outline);
+            outline-offset: -15px;
+        }
+
+        /* Estilos específicos de Plantilla (Classic y Modern) */
+        .template-classic .certificate-wrapper { background-color: #fcf9f3; }
+        .template-classic .certificate-wrapper::before { border: 3px double #a00; outline: 3px solid #8B0000; outline-offset: -10px; }
+        .template-classic .cert-title, .template-classic .cert-company-name, .template-classic .cert-date-block .date-text { color: #8B0000; }
+        .template-classic .cert-recipient { font-family: 'Great Vibes', cursive; color: #5a0000; font-weight: normal;}
+
+        .template-modern .certificate-wrapper { background-color: #f0fdf4; }
+        .template-modern .certificate-wrapper::before { border: 4px solid #3CB371; outline: 2px solid #2E8B57; outline-offset: -10px; border-radius: 10px; }
+        .template-modern .cert-title, .template-modern .cert-company-name, .template-modern .cert-date-block .date-text { color: #2E8B57; font-family: 'Poppins', sans-serif; font-weight: 600;}
+        .template-modern .cert-recipient { font-family: 'Poppins', sans-serif; color: #333; font-weight: 700; border-bottom: 1px solid #ddd;}
+
+
+        /* TÍTULO Y NOMBRE (AJUSTADOS PARA ENCAJAR) */
+        .cert-title {
+            font-family: var(--font-display);
+            font-size: 3.0em; /* Reducido */
+            color: var(--primary-color);
+            margin-top: 100px; /* Margen para el QR superior */
+            margin-bottom: 5px;
+            font-weight: 700;
+        }
+        .cert-recipient {
+            font-family: var(--font-display);
+            font-size: 3.5em; /* Reducido */
+            color: #333;
+            margin: 25px 0;
+            font-weight: 400;
+            padding-bottom: 5px;
+            border-bottom: 2px solid #ccc;
+            display: inline-block;
+        }
+        .cert-subtitle { font-size: 1.4em; color: #555; margin-bottom: 10px; font-weight: 400; }
+        .cert-body-text { font-size: 1.1em; margin: 20px auto 40px auto; max-width: 75%; line-height: 1.7; color: #444; }
+
+        /* HEADER y QR (Superiores) */
+        .cert-company-name {
+            position: absolute;
+            top: var(--cert-inner-margin); 
+            left: var(--cert-inner-margin); 
+            font-size: 1.5em;
+            font-weight: 700;
+            color: var(--primary-color);
+            letter-spacing: 2px;
+            text-decoration: underline;
+            text-decoration-color: var(--secondary-color);
+            z-index: 2;
+        }
+        .cert-qr-block {
+            position: absolute;
+            top: var(--cert-inner-margin); /* TOP DERECHA */
+            right: var(--cert-inner-margin);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0; /* Sin espacio para el label */
+            z-index: 2; 
+        }
+        .qr-label { height: 0; overflow: hidden; margin: 0; padding: 0; } /* Ocultar Label */
+        #qrcode {
+            width: 80px;
+            height: 80px;
+            padding: 5px;
+            background: white;
+            border: 2px solid var(--primary-color);
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+        }
+
+        /* FOOTER (Firmas y Fecha) */
+        .cert-footer {
+            display: flex;
+            justify-content: space-around; 
+            align-items: flex-end;
+            margin-top: 40px;
+            padding: 0 calc(var(--cert-inner-margin) * 2); 
+            z-index: 2;
+            position: relative; 
+        }
+        .cert-signature-block { flex: 1; text-align: center; max-width: 250px; }
+        .signature-image-container { height: 80px; display: flex; justify-content: center; align-items: flex-end; position: relative; margin-bottom: -15px; }
+        .signature-image { max-height: 100%; width: auto; max-width: 180px; object-fit: contain; filter: drop-shadow(0 0 1px rgba(0,0,0,0.2)); }
+        .signature-line { border-top: 2px solid #333; height: 1px; width: 80%; margin: 15px auto 5px auto; }
+        .signature-name { font-weight: 600; font-size: 1.1em; color: var(--primary-color); }
+        .signature-title { font-size: 0.9em; color: #777; }
+        
+        /* FECHA (Centro Inferior) */
+        .cert-date-block {
+            position: absolute; 
+            bottom: var(--cert-inner-margin); 
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            font-family: var(--font-body);
+            z-index: 2;
+        }
+        .cert-date-block .date-text { font-size: 1.1em; font-weight: 600; color: var(--primary-color); margin-bottom: 5px; }
+        .cert-date-block .date-label { font-size: 0.9em; color: #777; }
+
+        /* Media Queries para responsividad */
+        @media (max-width: 600px) {
+            .cert-title { margin-top: 60px; font-size: 2em; }
+            .cert-recipient { font-size: 2.5em; }
+            .cert-footer { flex-direction: column; gap: 20px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="control-panel">
+            <h2>Panel de Personalización</h2>
+
+            <div class="form-group">
+                <label for="template-selector">Seleccionar Plantilla</label>
+                <select id="template-selector" onchange="applyTemplate()">
+                    <option value="professional">Profesional (Azul/Oro)</option>
+                    <option value="classic">Clásica (Gris/Rojo)</option>
+                    <option value="modern">Moderna (Verde/Minimalista)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="input-title">Título del Certificado</label>
+                <input type="text" id="input-title" value="CERTIFICADO DE LOGRO" oninput="updateCertificate()">
+            </div>
+            <div class="form-group">
+                <label for="input-subtitle">Lema / Frase de Concesión</label>
+                <input type="text" id="input-subtitle" value="Se otorga este reconocimiento a:" oninput="updateCertificate()">
+            </div>
+            <div class="form-group">
+                <label for="input-name">Nombre del Receptor</label>
+                <input type="text" id="input-name" value="Nombre Apellido" disabled style="background-color: #eee;">
+                <small>El nombre se toma del lote al generar el ZIP.</small>
+            </div>
+            <div class="form-group">
+                <label for="input-text">Cuerpo del Texto (Use [Nombre Apellido] como marcador)</label>
+                <textarea id="input-text" oninput="updateCertificate()">La entidad certificadora reconoce a [Nombre Apellido] por su participación y conclusión exitosa del programa de capacitación en Liderazgo Estratégico, demostrando un compromiso inigualable con la excelencia y el desarrollo profesional.</textarea>
+            </div>
+            
+            <hr>
+            
+            <div class="form-group">
+                <label for="input-signature-name-1">Nombre del Firmante Principal</label>
+                <input type="text" id="input-signature-name-1" value="Dr. J. K. Doe" oninput="updateCertificate()">
+            </div>
+            <div class="form-group">
+                <label for="input-signature-title-1">Cargo/Designación Principal</label>
+                <input type="text" id="input-signature-title-1" value="Director Ejecutivo" oninput="updateCertificate()">
+            </div>
+            <div class="form-group">
+                <label for="input-signature-name-2">Nombre del Segundo Firmante</label>
+                <input type="text" id="input-signature-name-2" value="Coordinador del Programa" oninput="updateCertificate()">
+            </div>
+            <div class="form-group">
+                <label for="input-signature-title-2">Cargo/Designación Segundo Firmante</label>
+                <input type="text" id="input-signature-title-2" value="Jefe de Departamento" oninput="updateCertificate()">
+            </div>
+            <div class="form-group">
+                <label for="input-date">Fecha de Emisión</label>
+                <input type="date" id="input-date" value="2025-11-17" onchange="updateCertificate()">
+            </div>
+            <button class="btn-generate" onclick="processBatchAndDownloadZip()">Generar Lote y Descargar ZIP</button>
+        </div>
+
+        <div class="certificate-area">
+            <div id="certificate-output" class="certificate-wrapper">
+                
+                <div id="cert-company" class="cert-company-name">MST CERTIFICA</div> 
+                
+                <div class="cert-qr-block"> 
+                    <div id="qrcode"></div>
+                    <div class="qr-label"></div> 
+                </div>
+
+                <h1 id="output-title" class="cert-title">CERTIFICADO DE LOGRO</h1>
+                <div id="output-subtitle" class="cert-subtitle">Se otorga este reconocimiento a:</div>
+                <div id="output-name" class="cert-recipient">Nombre Apellido</div>
+                <p id="output-text" class="cert-body-text">La entidad certificadora reconoce a Nombre Apellido por su participación y conclusión exitosa del programa de capacitación en Liderazgo Estratégico, demostrando un compromiso inigualable con la excelencia y el desarrollo profesional.</p>
+                
+                <div class="cert-footer">
+                    <div class="cert-signature-block">
+                        <div class="signature-image-container">
+                            <img id="output-signature-img-1" class="signature-image" src="https://i.ibb.co/L8m7fF7/firma-ejemplo.png" alt="Firma Principal">
+                        </div>
+                        <div class="signature-line"></div>
+                        <div id="output-signature-name-1" class="signature-name">Dr. J. K. Doe</div>
+                        <div id="output-signature-title-1" class="signature-title">Director Ejecutivo</div>
+                    </div>
+                    
+                    <div class="cert-signature-block">
+                        <div class="signature-image-container">
+                            <img id="output-signature-img-2" class="signature-image" src="https://i.ibb.co/L8m7fF7/firma-ejemplo.png" alt="Firma Secundaria">
+                        </div>
+                        <div class="signature-line"></div>
+                        <div id="output-signature-name-2" class="signature-name">Coordinador del Programa</div>
+                        <div id="output-signature-title-2" class="signature-title">Jefe de Departamento</div>
+                    </div>
+                </div>
+
+                <div class="cert-date-block">
+                    <div id="output-date" class="date-text">17 de Noviembre de 2025</div>
+                    <div class="date-label">Fecha de Emisión</div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Objeto con las definiciones de las plantillas (simplificado)
+        const templates = {
+            professional: { className: '', styles: { '--primary-color': '#004d99', '--secondary-color': '#ffd700', '--font-body': "'Poppins', sans-serif", '--font-display': "'Playfair Display', serif'"} },
+            classic: { className: 'template-classic', styles: { '--primary-color': '#8B0000', '--secondary-color': '#A00', '--font-body': "'Times New Roman', serif", '--font-display': "'Playfair Display', serif"} },
+            modern: { className: 'template-modern', styles: { '--primary-color': '#2E8B57', '--secondary-color': '#3CB371', '--font-body': "'Poppins', sans-serif", '--font-display': "'Poppins', sans-serif"} }
+        };
+
+        function applyTemplate() {
+            const selector = document.getElementById('template-selector');
+            const template = templates[selector.value];
+            const root = document.documentElement;
+            const wrapper = document.getElementById('certificate-output');
+            
+            wrapper.className = 'certificate-wrapper'; // Limpiar clases
+            if (template.className) wrapper.classList.add(template.className);
+            for (const [prop, value] of Object.entries(template.styles)) { root.style.setProperty(prop, value); }
+            updateCertificate();
+        }
+
+        // ------------------------------------------------------------------
+        // ** MODIFIQUE ESTOS DATOS CON SU LISTA DE EXCEL/CSV **
+        // DNI se usa en el nombre del archivo para orden e identificación.
+        // ------------------------------------------------------------------
+        const peopleData = [
+            { dni: "12345678A", name: "Ana María", lastName: "Gómez Pérez", email: "ana.gomez@ejemplo.com" },
+            { dni: "87654321B", name: "Carlos David", lastName: "Ruiz López", email: "carlos.ruiz@ejemplo.com" },
+            { dni: "11223344C", name: "Elena Rosa", lastName: "Martínez Díaz", email: "elena.martinez@ejemplo.com" },
+            { dni: "99887766D", name: "Francisco José", lastName: "López Vargas", email: "francisco.lopez@ejemplo.com" },
+        ];
+
+
+        function generateUniqueId() {
+            return Math.random().toString(36).substring(2, 8).toUpperCase();
+        }
+
+        function generateQRCode(recipientName) {
+            // Se puede incluir DNI/Email aquí si se desea más seguridad en el QR
+            const uniqueId = generateUniqueId(); 
+            const verificationUrl = `https://verifymst.com/cert?id=${uniqueId}&name=${encodeURIComponent(recipientName)}`;
+            
+            const qrElement = document.getElementById("qrcode");
+            qrElement.innerHTML = ""; 
+
+            new QRCode(qrElement, {
+                text: verificationUrl,
+                width: 80,
+                height: 80,
+                colorDark : "#000000",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
+            });
+        }
+        
+        /**
+         * Actualiza la vista previa del certificado con los datos proporcionados.
+         * Se llama sin argumentos para actualizar con los datos del panel, o con ellos para el lote.
+         */
+        function updateCertificate(nameForBatch, textPlaceholder) {
+            const title = document.getElementById('input-title').value.toUpperCase();
+            const subtitle = document.getElementById('input-subtitle').value;
+            
+            // Determinar el nombre a mostrar (Lote o Input Manual)
+            const currentName = nameForBatch || document.getElementById('input-name').value || 'NOMBRE DEL RECEPTOR';
+            let text = document.getElementById('input-text').value;
+
+            // Firmantes y Fecha (tomados siempre de los inputs)
+            const date = document.getElementById('input-date').value;
+            let formattedDate = '';
+            if (date) {
+                const dateObj = new Date(date + 'T00:00:00'); 
+                formattedDate = dateObj.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+            } else { formattedDate = 'FECHA'; }
+
+            // Reemplazo del placeholder en el texto (Usa [Nombre Apellido])
+            const finalPlaceholder = textPlaceholder || '[Nombre Apellido]';
+            text = text.replace(finalPlaceholder, currentName);
+
+            // Actualizar DOM
+            document.getElementById('output-title').textContent = title;
+            document.getElementById('output-subtitle').textContent = subtitle;
+            document.getElementById('output-name').textContent = currentName;
+            document.getElementById('output-text').textContent = text;
+            document.getElementById('output-signature-name-1').textContent = document.getElementById('input-signature-name-1').value;
+            document.getElementById('output-signature-title-1').textContent = document.getElementById('input-signature-title-1').value;
+            document.getElementById('output-signature-name-2').textContent = document.getElementById('input-signature-name-2').value;
+            document.getElementById('output-signature-title-2').textContent = document.getElementById('input-signature-title-2').value;
+            document.getElementById('output-date').textContent = formattedDate;
+
+            generateQRCode(currentName); 
+        }
+
+        // ------------------------------------------------------------------
+        // ** LÓGICA DE EXPORTACIÓN Y GENERACIÓN EN LOTE **
+        // ------------------------------------------------------------------
+
+        /**
+         * Captura la salida del certificado como una imagen (PNG).
+         */
+        async function captureCertificateAsPNG() {
+            const element = document.getElementById('certificate-output');
+            
+            const canvas = await html2canvas(element, {
+                scale: 2, 
+                allowTaint: true,
+                useCORS: true,
+            });
+
+            return new Promise(resolve => {
+                canvas.toBlob(resolve, 'image/png', 1.0);
+            });
+        }
+
+        /**
+         * Procesa la lista de personas, genera los certificados y descarga un archivo ZIP.
+         */
+        async function processBatchAndDownloadZip() {
+            if (peopleData.length === 0) {
+                alert("La lista de datos (peopleData) está vacía. Por favor, agregue destinatarios en el código JavaScript.");
+                return;
+            }
+
+            const total = peopleData.length;
+            const zip = new JSZip();
+            const textPlaceholder = "[Nombre Apellido]";
+            
+            if (!confirm(`Se generarán ${total} certificados en formato PNG (imagen de alta calidad) y se comprimirán en un archivo ZIP. ¿Desea continuar?`)) {
+                return;
+            }
+            
+            // Guardar estado inicial del texto para resetearlo en cada iteración
+            const initialTextValue = document.getElementById('input-text').value;
+            
+            document.querySelector('.btn-generate').textContent = 'Generando... por favor espere.';
+            document.querySelector('.btn-generate').disabled = true;
+
+            for (let i = 0; i < total; i++) {
+                const person = peopleData[i];
+                const fullName = `${person.name} ${person.lastName}`;
+                // Crea un nombre de archivo seguro y útil: DNI_Nombre_Apellido.png
+                const safeFileName = `${person.dni}_${fullName.replace(/[^a-z0-9]/gi, '_')}.png`;
+
+                // 1. Renderizar el certificado para la persona actual
+                document.getElementById('input-text').value = initialTextValue; 
+                updateCertificate(fullName, textPlaceholder);
+                
+                // Pequeña pausa para asegurar que la vista y el QR se rendericen
+                await new Promise(resolve => setTimeout(resolve, 50)); 
+                
+                // 2. Capturar el certificado como PNG
+                try {
+                    const pngBlob = await captureCertificateAsPNG();
+                    zip.file(safeFileName, pngBlob);
+                    console.log(`✅ Certificado generado: ${safeFileName}`);
+                } catch (error) {
+                    console.error(`❌ Error al generar certificado para ${fullName}. Saltando...`, error);
+                }
+            }
+
+            // 3. Descargar el archivo ZIP
+            try {
+                const zipContent = await zip.generateAsync({ type: "blob" });
+                saveAs(zipContent, "MST_Certificados_Lote.zip");
+                alert(`🎉 ¡Éxito! Se generaron ${total} certificados. El archivo ZIP se está descargando.
+                \nLos archivos están nombrados como: DNI_NOMBRE.png`);
+            } catch (error) {
+                alert("Hubo un error al crear o descargar el archivo ZIP.");
+                console.error("Error ZIP:", error);
+            }
+
+            // 4. Restaurar la interfaz
+            document.querySelector('.btn-generate').textContent = 'Generar Lote y Descargar ZIP';
+            document.querySelector('.btn-generate').disabled = false;
+            updateCertificate(document.getElementById('input-name').value, textPlaceholder); 
+            document.getElementById('input-name').value = "Nombre Apellido"; // Resetea el input para la vista previa
+        }
+
+
+        // Inicializar la página
+        window.onload = function() {
+            applyTemplate(); 
+            
+            // Usamos el primer registro de la lista como vista previa si existe
+            if(peopleData.length > 0) {
+                 document.getElementById('input-name').value = `${peopleData[0].name} ${peopleData[0].lastName}`;
+            }
+            // Primera actualización para cargar la vista previa
+            updateCertificate(document.getElementById('input-name').value, '[Nombre Apellido]');
+        };
+    </script>
+
+</body>
+</html>
